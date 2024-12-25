@@ -60,12 +60,21 @@ func UploadHandler(c *fiber.Ctx) error {
 	response += "Hasil Pengelompokan Data:\n"
 
 	for _, key := range keys {
-		columns := groupedData[key]
+		data := groupedData[key]
 		response += fmt.Sprintf("Key: %s\n", key)
-		for column, values := range columns {
-			response += fmt.Sprintf("  %s:\n", column)
-			for _, value := range values {
-				response += fmt.Sprintf("    %s\n", value)
+
+		for _, col := range []string{"Issue Type", "Summary", "Status", "Assignee", "Labels", "Story point estimate", "Created", "Bloked-GQA"} {
+			if val, ok := data[col]; ok {
+				response += fmt.Sprintf("  %s: %v\n", col, val)
+			}
+		}
+
+		if details, ok := data["Details"].(map[string][]string); ok {
+			for column, values := range details {
+				response += fmt.Sprintf("  %s:\n", column)
+				for _, value := range values {
+					response += fmt.Sprintf("    %s\n", value)
+				}
 			}
 		}
 		response += "\n"
