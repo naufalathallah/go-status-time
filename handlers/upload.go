@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -49,10 +50,17 @@ func UploadHandler(c *fiber.Ctx) error {
 
 	groupedData := utils.GroupByColumnData(headers, records, startDate, endDate)
 
+	keys := make([]string, 0, len(groupedData))
+	for key := range groupedData {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	response := fmt.Sprintf("startDate: %s\nendDate: %s\n\n", startDateStr, endDateStr)
 	response += "Hasil Pengelompokan Data:\n"
 
-	for key, columns := range groupedData {
+	for _, key := range keys {
+		columns := groupedData[key]
 		response += fmt.Sprintf("Key: %s\n", key)
 		for column, values := range columns {
 			response += fmt.Sprintf("  %s:\n", column)
