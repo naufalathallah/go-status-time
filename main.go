@@ -11,6 +11,10 @@ import (
 func main() {
 	app := fiber.New()
 
+	app.Get("/", func(c *fiber.Ctx) error {
+		return c.SendString("Welcome")
+	})
+
 	app.Post("/upload", handlers.UploadHandler)
 
 	fmt.Println("Server berjalan di http://localhost:8000")
