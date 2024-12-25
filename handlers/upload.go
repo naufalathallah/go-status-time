@@ -79,6 +79,19 @@ func UploadHandler(c *fiber.Ctx) error {
 		}
 		response += "\n"
 	}
+	fmt.Println(response)
 
-	return c.SendString(response)
+	excelFile, err := utils.CreateExcelFile(groupedData)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Gagal membuat file Excel")
+	}
+
+	buffer, err := excelFile.WriteToBuffer()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Gagal menyimpan file Excel")
+	}
+
+	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Set("Content-Disposition", "attachment; filename=data.xlsx")
+	return c.Send(buffer.Bytes())
 }
