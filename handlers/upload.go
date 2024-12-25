@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/naufalathallah/go-status-time/utils"
@@ -12,12 +13,23 @@ func UploadHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusMethodNotAllowed).SendString("Hanya menerima metode POST")
 	}
 
-	startDate := c.FormValue("startDate")
-	endDate := c.FormValue("endDate")
+	startDateStr := c.FormValue("startDate")
+	endDateStr := c.FormValue("endDate")
 
-	if startDate == "" || endDate == "" {
+	if startDateStr == "" || endDateStr == "" {
 		return c.Status(fiber.StatusBadRequest).SendString("startDate dan endDate harus diisi")
 	}
+
+	startDate, err := time.Parse("2006/01/02", startDateStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Format startDate tidak valid")
+	}
+
+	endDate, err := time.Parse("2006/01/02", endDateStr)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString("Format endDate tidak valid")
+	}
+	endDate = endDate.Add(24*time.Hour - time.Second)
 
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -35,9 +47,9 @@ func UploadHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).SendString("Gagal membaca file CSV")
 	}
 
-	groupedData := utils.GroupByColumnData(headers, records)
+	groupedData := utils.GroupByColumnData(headers, records, startDate, endDate)
 
-	response := fmt.Sprintf("startDate: %s\nendDate: %s\n\n", startDate, endDate)
+	response := fmt.Sprintf("startDate: %s\nendDate: %s\n\n", startDateStr, endDateStr)
 	response += "Hasil Pengelompokan Data:\n"
 
 	for key, columns := range groupedData {
@@ -53,4 +65,3 @@ func UploadHandler(c *fiber.Ctx) error {
 
 	return c.SendString(response)
 }
-
