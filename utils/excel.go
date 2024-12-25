@@ -30,6 +30,9 @@ func CreateExcelFile(groupedData map[string]map[string]interface{}) (*excelize.F
 	sort.Strings(keys)
 
 	row := 2
+	totalCodeFixing := 0.0
+	totalInProgress := 0.0
+
 	for _, key := range keys {
 		data := groupedData[key]
 		colValues := make(map[string]float64)
@@ -43,6 +46,9 @@ func CreateExcelFile(groupedData map[string]map[string]interface{}) (*excelize.F
 				}
 			}
 		}
+
+		totalCodeFixing += colValues["Code Fixing-GQA"]
+		totalInProgress += colValues["In Progress-GQA"]
 
 		cols := []interface{}{
 			key,
@@ -63,6 +69,15 @@ func CreateExcelFile(groupedData map[string]map[string]interface{}) (*excelize.F
 		}
 		row++
 	}
+
+	totalRow := row
+	excel.SetCellValue(sheetName, "A"+strconv.Itoa(totalRow), "Total Time:")
+	excel.SetCellValue(sheetName, "K"+strconv.Itoa(totalRow), formatNumber(totalCodeFixing))
+	excel.SetCellValue(sheetName, "M"+strconv.Itoa(totalRow), formatNumber(totalInProgress))
+
+	totalOverallRow := totalRow + 1
+	excel.SetCellValue(sheetName, "A"+strconv.Itoa(totalOverallRow), "Total Overall Time:")
+	excel.SetCellValue(sheetName, "K"+strconv.Itoa(totalOverallRow), formatNumber(totalCodeFixing+totalInProgress))
 
 	return excel, nil
 }
