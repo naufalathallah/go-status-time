@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -78,6 +79,8 @@ func CreateExcelFile(groupedData map[string]map[string]interface{}) (*excelize.F
 	totalOverallRow := totalRow + 1
 	excel.SetCellValue(sheetName, "A"+strconv.Itoa(totalOverallRow), "Total Overall Time:")
 	excel.SetCellValue(sheetName, "K"+strconv.Itoa(totalOverallRow), formatNumber(totalCodeFixing+totalInProgress))
+
+	fmt.Println("Total Overall Time: ", formatNumber(totalCodeFixing+totalInProgress))
 
 	return excel, nil
 }
