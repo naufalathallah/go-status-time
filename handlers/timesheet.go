@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -52,17 +51,24 @@ func TimesheetHandler(c *fiber.Ctx) error {
 	// Logic baru untuk pemrosesan timesheet
 	timesheetData := processTimesheetData(headers, records, startDate, endDate)
 
-	// Mengembalikan data dalam format JSON
-	response, err := json.MarshalIndent(timesheetData, "", "  ")
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Gagal memproses data timesheet")
-	}
-
 	fmt.Println("=== Timesheet Data ===")
 	fmt.Println(timesheetData)
 
-	c.Set("Content-Type", "application/json")
-	return c.Send(response)
+	excelFile, err := utils.ExportTimesheet(timesheetData)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Gagal membuat file Excel")
+	}
+
+	// Simpan file Excel ke buffer
+	buffer, err := excelFile.WriteToBuffer()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).SendString("Gagal menyimpan file Excel")
+	}
+
+	// Set header dan kirim file Excel
+	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=timesheet-%s-to-%s.xlsx", startDate.Format("2006-01-02"), endDate.Format("2006-01-02")))
+	return c.Send(buffer.Bytes())
 }
 
 func processTimesheetData(headers []string, records [][]string, startDate, endDate time.Time) string {
