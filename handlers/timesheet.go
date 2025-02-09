@@ -54,7 +54,7 @@ func TimesheetHandler(c *fiber.Ctx) error {
 	fmt.Println("=== Timesheet Data ===")
 	fmt.Println(timesheetData)
 
-	excelFile, err := utils.ExportTimesheet(timesheetData)
+	excelFile, err := utils.ExportTimesheet(timesheetData, startDate, endDate)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString("Gagal membuat file Excel")
 	}
