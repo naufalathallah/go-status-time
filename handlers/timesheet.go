@@ -138,8 +138,23 @@ func processTimesheetData(headers []string, records [][]string, startDate, endDa
 	for currentDate.Before(endDate) || currentDate.Equal(endDate) {
 		dateKey := currentDate.Format("2 January 2006")
 		output.WriteString(dateKey + ":\n")
+
 		if activities, ok := result[dateKey]; ok {
-			output.WriteString(strings.Join(activities, ", ") + "\n")
+			// Gunakan map untuk menghindari duplikasi
+			uniqueActivities := make(map[string]bool)
+			var filteredActivities []string
+
+			for _, activity := range activities {
+				if !uniqueActivities[activity] {
+					uniqueActivities[activity] = true
+					filteredActivities = append(filteredActivities, activity)
+				}
+			}
+
+			// Tambahkan aktivitas yang unik ke output
+			if len(filteredActivities) > 0 {
+				output.WriteString(strings.Join(filteredActivities, ", ") + "\n")
+			}
 		}
 		currentDate = currentDate.Add(24 * time.Hour)
 	}
