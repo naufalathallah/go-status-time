@@ -9,7 +9,7 @@ import (
 	"github.com/naufalathallah/go-status-time/utils"
 )
 
-func UploadHandler(c *fiber.Ctx) error {
+func WeeklyHandler(c *fiber.Ctx) error {
 	if c.Method() != fiber.MethodPost {
 		return c.Status(fiber.StatusMethodNotAllowed).SendString("Hanya menerima metode POST")
 	}
