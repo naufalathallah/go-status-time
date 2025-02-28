@@ -66,8 +66,9 @@ func TimesheetHandler(c *fiber.Ctx) error {
 	}
 
 	// Set header dan kirim file Excel
+	filename := fmt.Sprintf("timesheet-%s-%s.xlsx", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=timesheet-%s-to-%s.xlsx", startDate.Format("2006-01-02"), endDate.Format("2006-01-02")))
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	return c.Send(buffer.Bytes())
 }
 
