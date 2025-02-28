@@ -9,7 +9,7 @@ import (
 	"github.com/naufalathallah/go-status-time/utils"
 )
 
-func UploadHandler(c *fiber.Ctx) error {
+func WeeklyHandler(c *fiber.Ctx) error {
 	if c.Method() != fiber.MethodPost {
 		return c.Status(fiber.StatusMethodNotAllowed).SendString("Hanya menerima metode POST")
 	}
@@ -91,7 +91,7 @@ func UploadHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).SendString("Gagal menyimpan file Excel")
 	}
 
-	filename := fmt.Sprintf("status-time-%s-%s.xlsx", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	filename := fmt.Sprintf("weekly-%s-%s.xlsx", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	return c.Send(buffer.Bytes())

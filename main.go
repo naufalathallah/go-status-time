@@ -15,7 +15,7 @@ func main() {
 		return c.SendString("Welcome")
 	})
 
-	app.Post("/upload", handlers.UploadHandler)
+	app.Post("/weekly", handlers.WeeklyHandler)
 	app.Post("/timesheet", handlers.TimesheetHandler)
 
 	fmt.Println("Server berjalan di http://localhost:8000")
