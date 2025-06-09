@@ -10,7 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type TimesheetRequest struct {
+type JQLRequest struct {
 	Project   []string `json:"project"`
 	Assignee  string   `json:"assignee"`
 	StartDate string   `json:"startDate"`
@@ -18,7 +18,7 @@ type TimesheetRequest struct {
 }
 
 func TimesheetWorklogHandler(c *fiber.Ctx) error {
-	var req TimesheetRequest
+	var req JQLRequest
 	if err := c.BodyParser(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
