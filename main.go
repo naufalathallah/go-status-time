@@ -5,8 +5,15 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/joho/godotenv"
 	"github.com/naufalathallah/go-status-time/handlers"
 )
+
+func init() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatalf("⚠️ .env file not found or failed to load")
+	}
+}
 
 func main() {
 	app := fiber.New()
