@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,14 @@ type JQLRequest struct {
 	Assignee  string   `json:"assignee"`
 	StartDate string   `json:"startDate"`
 	EndDate   string   `json:"endDate"`
+}
+
+type JiraIssue struct {
+	Key string `json:"key"`
+}
+
+type JiraSearchResponse struct {
+	Issues []JiraIssue `json:"issues"`
 }
 
 func TimesheetWorklogHandler(c *fiber.Ctx) error {
@@ -56,6 +65,20 @@ func TimesheetWorklogHandler(c *fiber.Ctx) error {
 
 	body, _ := io.ReadAll(resp.Body)
 
-	// You can unmarshal and filter or just return raw
-	return c.Type("json").Send(body)
+	var searchResponse JiraSearchResponse
+	if err := json.Unmarshal(body, &searchResponse); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to parse Jira response")
+	}
+
+	// Kumpulkan semua key
+	var issueKeys []string
+	for _, issue := range searchResponse.Issues {
+		issueKeys = append(issueKeys, issue.Key)
+	}
+	fmt.Println("Issue keys:", issueKeys)
+
+	// Lanjut proses pakai issueKeys sesuai keperluan
+	return c.JSON(fiber.Map{
+		"issue_keys": issueKeys,
+	})
 }
