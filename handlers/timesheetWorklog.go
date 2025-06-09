@@ -41,6 +41,7 @@ type Comment struct {
 
 type WorklogEntry struct {
 	Updated string  `json:"updated"`
+	Started string  `json:"started"` 
 	Comment Comment `json:"comment"`
 }
 
@@ -131,6 +132,7 @@ func TimesheetWorklogHandler(c *fiber.Ctx) error {
 			worklogData = append(worklogData, map[string]interface{}{
 				"issue_key": issueKey,
 				"updated":   wl.Updated,
+				"started":   wl.Started,
 				"comment":   text,
 			})
 		}
@@ -163,7 +165,7 @@ func FormatWorklogTimesheet(worklogs []map[string]interface{}, startDate, endDat
 	grouped := make(map[string][]string)
 
 	for _, entry := range worklogs {
-		updatedRaw, ok := entry["updated"].(string)
+		updatedRaw, ok := entry["started"].(string)
 		if !ok {
 			continue
 		}
