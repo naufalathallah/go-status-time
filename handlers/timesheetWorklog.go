@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -135,8 +136,79 @@ func TimesheetWorklogHandler(c *fiber.Ctx) error {
 		}
 	}
 
+	// Parse start & end date dari request
+	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid startDate format")
+	}
+	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "Invalid endDate format")
+	}
+
+	// Format worklogs ke bentuk timesheet
+	timesheetText := FormatWorklogTimesheet(worklogData, startDate, endDate)
+
+	fmt.Println("=== Timesheet Data ===")
+	fmt.Println(timesheetText)
+
 	return c.JSON(fiber.Map{
 		"total_issues": len(issueKeys),
 		"worklogs":     worklogData,
+		"timesheet":    timesheetText,
 	})
+}
+
+func FormatWorklogTimesheet(worklogs []map[string]interface{}, startDate, endDate time.Time) string {
+	grouped := make(map[string][]string)
+
+	for _, entry := range worklogs {
+		updatedRaw, ok := entry["updated"].(string)
+		if !ok {
+			continue
+		}
+		updatedTime, err := time.Parse("2006-01-02T15:04:05.000-0700", updatedRaw)
+		if err != nil {
+			continue
+		}
+
+		if updatedTime.Before(startDate) || updatedTime.After(endDate) {
+			continue
+		}
+
+		comment, _ := entry["comment"].(string)
+		issueKey, _ := entry["issue_key"].(string)
+
+		// Format tanggal ke 2 June 2025
+		dateKey := updatedTime.Format("2 January 2006")
+		text := fmt.Sprintf("%s - %s", comment, issueKey)
+
+		grouped[dateKey] = append(grouped[dateKey], text)
+	}
+
+	// Buat output final
+	var output strings.Builder
+	currentDate := startDate
+	for !currentDate.After(endDate) {
+		dateKey := currentDate.Format("2 January 2006")
+		output.WriteString(dateKey + ":\n")
+
+		if activities, ok := grouped[dateKey]; ok {
+			// hapus duplikat
+			unique := make(map[string]bool)
+			var filtered []string
+			for _, act := range activities {
+				if !unique[act] {
+					unique[act] = true
+					filtered = append(filtered, act)
+				}
+			}
+			if len(filtered) > 0 {
+				output.WriteString(strings.Join(filtered, ", ") + "\n")
+			}
+		}
+		currentDate = currentDate.Add(24 * time.Hour)
+	}
+
+	return output.String()
 }
