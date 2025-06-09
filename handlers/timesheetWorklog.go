@@ -103,6 +103,7 @@ func TimesheetWorklogHandler(c *fiber.Ctx) error {
 	var worklogData []map[string]interface{}
 	for _, issueKey := range issueKeys {
 		worklogURL := fmt.Sprintf("%s/rest/api/3/issue/%s/worklog", jiraDomain, issueKey)
+		fmt.Println("Fetching worklog for issue:", issueKey)
 
 		reqW, _ := http.NewRequest("GET", worklogURL, nil)
 		reqW.Header.Add("Authorization", auth)
