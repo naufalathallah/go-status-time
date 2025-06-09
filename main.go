@@ -17,6 +17,7 @@ func main() {
 
 	app.Post("/weekly", handlers.WeeklyHandler)
 	app.Post("/timesheet", handlers.TimesheetHandler)
+	app.Post("/timesheet-worklog", handlers.TimesheetWorklogHandler)
 
 	fmt.Println("Server berjalan di http://localhost:8000")
 	if err := app.Listen(":8000"); err != nil {
