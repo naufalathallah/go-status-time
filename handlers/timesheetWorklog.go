@@ -26,6 +26,27 @@ type JiraSearchResponse struct {
 	Issues []JiraIssue `json:"issues"`
 }
 
+type CommentText struct {
+	Text string `json:"text"`
+}
+
+type CommentContent struct {
+	Content []CommentText `json:"content"`
+}
+
+type Comment struct {
+	Content []CommentContent `json:"content"`
+}
+
+type WorklogEntry struct {
+	Updated string  `json:"updated"`
+	Comment Comment `json:"comment"`
+}
+
+type WorklogResponse struct {
+	Worklogs []WorklogEntry `json:"worklogs"`
+}
+
 func TimesheetWorklogHandler(c *fiber.Ctx) error {
 	var req JQLRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -77,8 +98,45 @@ func TimesheetWorklogHandler(c *fiber.Ctx) error {
 	}
 	fmt.Println("Issue keys:", issueKeys)
 
-	// Lanjut proses pakai issueKeys sesuai keperluan
+	var worklogData []map[string]interface{}
+	for _, issueKey := range issueKeys {
+		worklogURL := fmt.Sprintf("%s/rest/api/3/issue/%s/worklog", jiraDomain, issueKey)
+
+		reqW, _ := http.NewRequest("GET", worklogURL, nil)
+		reqW.Header.Add("Authorization", auth)
+		reqW.Header.Add("Accept", "application/json")
+
+		respW, err := client.Do(reqW)
+		if err != nil {
+			fmt.Println("❌ Failed to get worklog for", issueKey)
+			continue
+		}
+		defer respW.Body.Close()
+
+		bodyW, _ := io.ReadAll(respW.Body)
+
+		var wlResp WorklogResponse
+		if err := json.Unmarshal(bodyW, &wlResp); err != nil {
+			fmt.Println("❌ Failed to parse worklog for", issueKey)
+			continue
+		}
+
+		for _, wl := range wlResp.Worklogs {
+			var text string
+			if len(wl.Comment.Content) > 0 && len(wl.Comment.Content[0].Content) > 0 {
+				text = wl.Comment.Content[0].Content[0].Text
+			}
+
+			worklogData = append(worklogData, map[string]interface{}{
+				"issue_key": issueKey,
+				"updated":   wl.Updated,
+				"comment":   text,
+			})
+		}
+	}
+
 	return c.JSON(fiber.Map{
-		"issue_keys": issueKeys,
+		"total_issues": len(issueKeys),
+		"worklogs":     worklogData,
 	})
 }
