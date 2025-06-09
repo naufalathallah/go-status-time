@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/naufalathallah/go-status-time/utils"
 )
 
 type JQLRequest struct {
@@ -155,11 +156,25 @@ func TimesheetWorklogHandler(c *fiber.Ctx) error {
 	fmt.Println("=== Timesheet Data ===")
 	fmt.Println(timesheetText)
 
-	return c.JSON(fiber.Map{
-		"total_issues": len(issueKeys),
-		"worklogs":     worklogData,
-		"timesheet":    timesheetText,
-	})
+	// Create and export Excel file
+	excelFile, err := utils.ExportTimesheetWorklog(timesheetText, startDate, endDate)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to create Excel file")
+	}
+
+	// Save Excel to buffer
+	buffer, err := excelFile.WriteToBuffer()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to save Excel file")
+	}
+
+	// Set headers and send Excel file
+	filename := fmt.Sprintf("worklog-timesheet-%s-%s.xlsx", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
+	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+
+	// Return both JSON and Excel file options
+	return c.Send(buffer.Bytes())
 }
 
 func FormatWorklogTimesheet(worklogs []map[string]interface{}, startDate, endDate time.Time) string {
