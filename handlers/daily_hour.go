@@ -18,10 +18,14 @@ func DailyHourHandler(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
 	}
 
+	// Ambil tanggal hari ini dalam format YYYY-MM-DD
+	today := time.Now().Format("2006-01-02")
+
+	// JQL otomatis: hanya hari ini
 	projectList := strings.Join(req.Project, ", ")
 	jql := fmt.Sprintf(
-		`project IN (%s) AND assignee = %s AND updated >= "%s" AND updated <= "%s" ORDER BY created DESC`,
-		projectList, req.Assignee, req.StartDate, req.EndDate,
+		`project IN (%s) AND assignee = %s AND worklogDate = "%s" ORDER BY created DESC`,
+		projectList, req.Assignee, today,
 	)
 
 	jqlEncoded := strings.ReplaceAll(jql, " ", "%20")
@@ -30,7 +34,6 @@ func DailyHourHandler(c *fiber.Ctx) error {
 
 	jiraDomain := "https://lionparcel.atlassian.net"
 	auth := os.Getenv("JIRA_AUTH")
-
 	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&maxResults=100&startAt=0", jiraDomain, jqlEncoded)
 
 	reqClient, _ := http.NewRequest("GET", url, nil)
@@ -43,7 +46,6 @@ func DailyHourHandler(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to request Jira")
 	}
 	defer resp.Body.Close()
-
 	body, _ := io.ReadAll(resp.Body)
 
 	var searchResponse JiraSearchResponse
@@ -51,14 +53,14 @@ func DailyHourHandler(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to parse Jira response")
 	}
 
-	issueKeys := []string{}
-	for _, issue := range searchResponse.Issues {
-		issueKeys = append(issueKeys, issue.Key)
-	}
+	var worklogsToday []map[string]interface{}
+	var totalSeconds int
 
-	dailyTotals := make(map[string]int)
-	for _, issueKey := range issueKeys {
+	for _, issue := range searchResponse.Issues {
+		issueKey := issue.Key
 		worklogURL := fmt.Sprintf("%s/rest/api/3/issue/%s/worklog", jiraDomain, issueKey)
+		fmt.Println("Fetching worklog for issue:", issueKey)
+
 		reqW, _ := http.NewRequest("GET", worklogURL, nil)
 		reqW.Header.Add("Authorization", auth)
 		reqW.Header.Add("Accept", "application/json")
@@ -80,17 +82,32 @@ func DailyHourHandler(c *fiber.Ctx) error {
 			if err != nil {
 				continue
 			}
-			dateKey := startedTime.Format("2006-01-02")
-			dailyTotals[dateKey] += wl.TimeSpentSeconds
+
+			if startedTime.Format("2006-01-02") != today {
+				continue
+			}
+
+			comment := ""
+			if len(wl.Comment.Content) > 0 && len(wl.Comment.Content[0].Content) > 0 {
+				comment = wl.Comment.Content[0].Content[0].Text
+			}
+
+			worklogsToday = append(worklogsToday, map[string]interface{}{
+				"issue_key":         issueKey,
+				"started":           startedTime.Format("2006-01-02 15:04"),
+				"time_spent_hours":  float64(wl.TimeSpentSeconds) / 3600,
+				"raw_time_seconds":  wl.TimeSpentSeconds,
+				"comment":           comment,
+			})
+
+			totalSeconds += wl.TimeSpentSeconds
 		}
 	}
 
-	dailyHours := make(map[string]float64)
-	for date, seconds := range dailyTotals {
-		dailyHours[date] = float64(seconds) / 3600
-	}
-
 	return c.JSON(fiber.Map{
-		"daily_hours": dailyHours,
+		"date":                  today,
+		"total_time_hours":      fmt.Sprintf("%.2f", float64(totalSeconds)/3600),
+		"total_time_seconds":    totalSeconds,
+		"worklogs_today":        worklogsToday,
 	})
 }
