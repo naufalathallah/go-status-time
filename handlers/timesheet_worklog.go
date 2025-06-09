@@ -44,6 +44,7 @@ type WorklogEntry struct {
 	Updated string  `json:"updated"`
 	Started string  `json:"started"` 
 	Comment Comment `json:"comment"`
+	TimeSpentSeconds int     `json:"timeSpentSeconds"`
 }
 
 type WorklogResponse struct {
