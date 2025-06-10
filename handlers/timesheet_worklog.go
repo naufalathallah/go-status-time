@@ -22,6 +22,7 @@ type JQLRequest struct {
 
 type JiraIssue struct {
 	Key string `json:"key"`
+	Fields JiraIssueField `json:"fields"`
 }
 
 type JiraSearchResponse struct {
