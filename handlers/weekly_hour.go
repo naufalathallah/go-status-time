@@ -69,7 +69,6 @@ func WeeklyHourHandler(c *fiber.Ctx) error {
 
 	for _, issue := range searchResponse.Issues {
 		issueKey := issue.Key
-		totalStoryPoints += issue.Fields.StoryPoint
 
 		worklogURL := fmt.Sprintf("%s/rest/api/3/issue/%s/worklog", jiraDomain, issueKey)
 		reqW, _ := http.NewRequest("GET", worklogURL, nil)
@@ -88,6 +87,8 @@ func WeeklyHourHandler(c *fiber.Ctx) error {
 			continue
 		}
 
+		hasWorklogInRange := false
+
 		for _, wl := range wlResp.Worklogs {
 			startedTime, err := time.Parse("2006-01-02T15:04:05.000-0700", wl.Started)
 			if err != nil {
@@ -101,6 +102,11 @@ func WeeklyHourHandler(c *fiber.Ctx) error {
 			dateKey := startedTime.Format("2006-01-02")
 			dailyTotals[dateKey] += wl.TimeSpentSeconds
 			totalSeconds += wl.TimeSpentSeconds
+			hasWorklogInRange = true
+		}
+
+		if hasWorklogInRange {
+			totalStoryPoints += issue.Fields.StoryPoint
 		}
 	}
 
