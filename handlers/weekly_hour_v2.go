@@ -145,12 +145,7 @@ func WeeklyHourV2Handler(c *fiber.Ctx) error {
     }
 
     return c.JSON(fiber.Map{
-        "date_range": map[string]string{
-            "start_date": startDate,
-            "end_date":   endDate,
-        },
         "total_time_hours":   fmt.Sprintf("%.2f", float64(totalSeconds)/3600),
-        "total_time_seconds": totalSeconds,
         "daily_summary":      dailySummary,
         "worklogs":           worklogs,
     })
