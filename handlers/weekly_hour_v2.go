@@ -10,131 +10,148 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/naufalathallah/go-status-time/utils"
 )
 
 func WeeklyHourV2Handler(c *fiber.Ctx) error {
-	var req JQLRequest
-	if err := c.BodyParser(&req); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
-	}
+    var req JQLRequest
+    if err := c.BodyParser(&req); err != nil {
+        return fiber.NewError(fiber.StatusBadRequest, "Invalid request body")
+    }
 
-	// Build JQL
-	projectList := strings.Join(req.Project, ", ")
-	jql := fmt.Sprintf(
-		`project IN (%s) AND assignee = %s AND updated >= "%s" AND updated <= "%s" ORDER BY created DESC`,
-		projectList, req.Assignee, req.StartDate, req.EndDate,
-	)
+    // Initialize date range
+    startDate := req.StartDate
+    endDate := req.EndDate
 
-	// Encode JQL
-	jqlEncoded := strings.ReplaceAll(jql, " ", "%20")
-	jqlEncoded = strings.ReplaceAll(jqlEncoded, `"`, "%22")
-	jqlEncoded = strings.ReplaceAll(jqlEncoded, ":", "%3A")
+    // If dates are not provided, default to today
+    if startDate == "" || endDate == "" {
+        today := time.Now().Format("2006-01-02")
+        startDate = today
+        endDate = today
+    }
 
-	// Jira API config
-	jiraDomain := "https://lionparcel.atlassian.net"
-	auth := os.Getenv("JIRA_AUTH")
+    // Validate date format
+    _, err := time.Parse("2006-01-02", startDate)
+    if err != nil {
+        return fiber.NewError(fiber.StatusBadRequest, "Invalid start date format. Use YYYY-MM-DD")
+    }
+    
+    _, err = time.Parse("2006-01-02", endDate)
+    if err != nil {
+        return fiber.NewError(fiber.StatusBadRequest, "Invalid end date format. Use YYYY-MM-DD")
+    }
 
-	// Initial URL
-	url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&maxResults=100&startAt=0", jiraDomain, jqlEncoded)
+    // JQL with date range
+    projectList := strings.Join(req.Project, ", ")
+    jql := fmt.Sprintf(
+        `project IN (%s) AND assignee = %s AND worklogDate >= "%s" AND worklogDate <= "%s" ORDER BY created DESC`,
+        projectList, req.Assignee, startDate, endDate,
+    )
 
-	// Make the request
-	reqClient, _ := http.NewRequest("GET", url, nil)
-	reqClient.Header.Add("Authorization", auth)
-	reqClient.Header.Add("Accept", "application/json")
+    jqlEncoded := strings.ReplaceAll(jql, " ", "%20")
+    jqlEncoded = strings.ReplaceAll(jqlEncoded, `"`, "%22")
+    jqlEncoded = strings.ReplaceAll(jqlEncoded, ":", "%3A")
 
-	client := &http.Client{}
-	resp, err := client.Do(reqClient)
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to request Jira")
-	}
-	defer resp.Body.Close()
+    jiraDomain := "https://lionparcel.atlassian.net"
+    auth := os.Getenv("JIRA_AUTH")
+    url := fmt.Sprintf("%s/rest/api/3/search?jql=%s&maxResults=100&startAt=0", jiraDomain, jqlEncoded)
 
-	body, _ := io.ReadAll(resp.Body)
+    reqClient, _ := http.NewRequest("GET", url, nil)
+    reqClient.Header.Add("Authorization", auth)
+    reqClient.Header.Add("Accept", "application/json")
 
-	var searchResponse JiraSearchResponse
-	if err := json.Unmarshal(body, &searchResponse); err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to parse Jira response")
-	}
+    client := &http.Client{}
+    resp, err := client.Do(reqClient)
+    if err != nil {
+        return fiber.NewError(fiber.StatusInternalServerError, "Failed to request Jira")
+    }
+    defer resp.Body.Close()
+    body, _ := io.ReadAll(resp.Body)
 
-	// Kumpulkan semua key
-	var issueKeys []string
-	for _, issue := range searchResponse.Issues {
-		issueKeys = append(issueKeys, issue.Key)
-	}
+    var searchResponse JiraSearchResponse
+    if err := json.Unmarshal(body, &searchResponse); err != nil {
+        return fiber.NewError(fiber.StatusInternalServerError, "Failed to parse Jira response")
+    }
 
-	var worklogData []map[string]interface{}
-	for _, issueKey := range issueKeys {
-		worklogURL := fmt.Sprintf("%s/rest/api/3/issue/%s/worklog", jiraDomain, issueKey)
-		fmt.Println("Fetching worklog for issue:", issueKey)
+    var worklogs []map[string]interface{}
+    var totalSeconds int
 
-		reqW, _ := http.NewRequest("GET", worklogURL, nil)
-		reqW.Header.Add("Authorization", auth)
-		reqW.Header.Add("Accept", "application/json")
+    // Map to track daily totals
+    dailyTotals := make(map[string]int)
 
-		respW, err := client.Do(reqW)
-		if err != nil {
-			fmt.Println("❌ Failed to get worklog for", issueKey)
-			continue
-		}
-		defer respW.Body.Close()
+    for _, issue := range searchResponse.Issues {
+        issueKey := issue.Key
+        worklogURL := fmt.Sprintf("%s/rest/api/3/issue/%s/worklog", jiraDomain, issueKey)
+        fmt.Println("Fetching worklog for issue:", issueKey)
 
-		bodyW, _ := io.ReadAll(respW.Body)
+        reqW, _ := http.NewRequest("GET", worklogURL, nil)
+        reqW.Header.Add("Authorization", auth)
+        reqW.Header.Add("Accept", "application/json")
 
-		var wlResp WorklogResponse
-		if err := json.Unmarshal(bodyW, &wlResp); err != nil {
-			fmt.Println("❌ Failed to parse worklog for", issueKey)
-			continue
-		}
+        respW, err := client.Do(reqW)
+        if err != nil {
+            continue
+        }
+        defer respW.Body.Close()
+        bodyW, _ := io.ReadAll(respW.Body)
 
-		for _, wl := range wlResp.Worklogs {
-			var text string
-			if len(wl.Comment.Content) > 0 && len(wl.Comment.Content[0].Content) > 0 {
-				text = wl.Comment.Content[0].Content[0].Text
-			}
+        var wlResp WorklogResponse
+        if err := json.Unmarshal(bodyW, &wlResp); err != nil {
+            continue
+        }
 
-			worklogData = append(worklogData, map[string]interface{}{
-				"issue_key": issueKey,
-				"updated":   wl.Updated,
-				"started":   wl.Started,
-				"comment":   text,
-			})
-		}
-	}
+        for _, wl := range wlResp.Worklogs {
+            startedTime, err := time.Parse("2006-01-02T15:04:05.000-0700", wl.Started)
+            if err != nil {
+                continue
+            }
 
-	// Parse start & end date dari request
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
-	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "Invalid startDate format")
-	}
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
-	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "Invalid endDate format")
-	}
+            worklogDate := startedTime.Format("2006-01-02")
+            
+            // Check if the worklog date is within the requested range
+            if worklogDate < startDate || worklogDate > endDate {
+                continue
+            }
 
-	// Format worklogs ke bentuk timesheet
-	timesheetText := FormatWorklogTimesheet(worklogData, startDate, endDate)
+            comment := ""
+            if len(wl.Comment.Content) > 0 && len(wl.Comment.Content[0].Content) > 0 {
+                comment = wl.Comment.Content[0].Content[0].Text
+            }
 
-	fmt.Println("=== Timesheet Data ===")
-	fmt.Println(timesheetText)
+            worklogs = append(worklogs, map[string]interface{}{
+                "issue_key":         issueKey,
+                "started":           startedTime.Format("2006-01-02 15:04"),
+                "date":              worklogDate,
+                "time_spent_hours":  float64(wl.TimeSpentSeconds) / 3600,
+                "raw_time_seconds":  wl.TimeSpentSeconds,
+                "comment":           comment,
+            })
 
-	// Create and export Excel file
-	excelFile, err := utils.ExportTimesheetWorklog(timesheetText, startDate, endDate)
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to create Excel file")
-	}
+            // Update total seconds
+            totalSeconds += wl.TimeSpentSeconds
+            
+            // Update daily totals
+            dailyTotals[worklogDate] += wl.TimeSpentSeconds
+        }
+    }
 
-	// Save Excel to buffer
-	buffer, err := excelFile.WriteToBuffer()
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, "Failed to save Excel file")
-	}
+    // Convert daily totals to a list for the response
+    dailySummary := make([]map[string]interface{}, 0, len(dailyTotals))
+    for date, seconds := range dailyTotals {
+        dailySummary = append(dailySummary, map[string]interface{}{
+            "date":           date,
+            "hours":          fmt.Sprintf("%.2f", float64(seconds)/3600),
+            "total_seconds":  seconds,
+        })
+    }
 
-	// Set headers and send Excel file
-	filename := fmt.Sprintf("worklog-timesheet-%s-%s.xlsx", startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
-	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
-
-	// Return both JSON and Excel file options
-	return c.Send(buffer.Bytes())
+    return c.JSON(fiber.Map{
+        "date_range": map[string]string{
+            "start_date": startDate,
+            "end_date":   endDate,
+        },
+        "total_time_hours":   fmt.Sprintf("%.2f", float64(totalSeconds)/3600),
+        "total_time_seconds": totalSeconds,
+        "daily_summary":      dailySummary,
+        "worklogs":           worklogs,
+    })
 }
