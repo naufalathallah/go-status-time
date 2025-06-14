@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -140,13 +141,26 @@ func WeeklyHourV2Handler(c *fiber.Ctx) error {
         dailySummary = append(dailySummary, map[string]interface{}{
             "date":           date,
             "hours":          fmt.Sprintf("%.2f", float64(seconds)/3600),
-            "total_seconds":  seconds,
         })
     }
 
-    return c.JSON(fiber.Map{
-        "total_time_hours":   fmt.Sprintf("%.2f", float64(totalSeconds)/3600),
-        "daily_summary":      dailySummary,
-        "worklogs":           worklogs,
+	// Sort daily summary by date in ascending order
+    sort.Slice(dailySummary, func(i, j int) bool {
+        return dailySummary[i]["date"].(string) < dailySummary[j]["date"].(string)
     })
+
+    type OrderedResponse struct {
+        TotalTimeHours string                   `json:"total_time_hours"`
+        DailySummary   []map[string]interface{} `json:"daily_summary"`
+        Worklogs       []map[string]interface{} `json:"worklogs"`
+    }
+
+    // Create response with ordered fields
+    response := OrderedResponse{
+        TotalTimeHours: fmt.Sprintf("%.2f", float64(totalSeconds)/3600),
+        DailySummary:   dailySummary,
+        Worklogs:       worklogs,
+    }
+
+    return c.JSON(response)
 }
