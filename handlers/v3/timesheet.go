@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/xuri/excelize/v2"
 )
 
 type WorklogResponse struct {
@@ -72,8 +73,33 @@ func TimesheetHandler(c *fiber.Ctx) error {
 	// Process worklog data with author filtering
 	timesheet := processWorklogDataFiltered(worklogData, authorId, startDate, endDate)
 
-	// Return as plain text response
-	return c.SendString(timesheet)
+	// Print to console
+	fmt.Println("Timesheet Data:")
+	fmt.Println(timesheet)
+
+	// Create Excel file
+	excelFile, err := createTimesheetExcel(worklogData, authorId, startDate, endDate)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to create Excel file",
+			"details": err.Error(),
+		})
+	}
+
+	// Set headers for Excel file download
+	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=timesheet_%s_to_%s.xlsx", startDate, endDate))
+
+	// Write Excel file to response
+	buffer, err := excelFile.WriteToBuffer()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to write Excel file",
+			"details": err.Error(),
+		})
+	}
+
+	return c.Send(buffer.Bytes())
 }
 
 func getWorklogData(startDate, endDate, authorId string) (*WorklogResponse, error) {
@@ -249,4 +275,123 @@ func formatIndonesianDate(t time.Time) string {
 		"Juli", "Agustus", "September", "Oktober", "November", "Desember",
 	}
 	return fmt.Sprintf("%d %s %d", t.Day(), months[t.Month()], t.Year())
+}
+
+func createTimesheetExcel(worklogData *WorklogResponse, authorId, startDate, endDate string) (*excelize.File, error) {
+	// Parse date range for filtering
+	startDateParsed, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing start date: %v", err)
+	}
+	endDateParsed, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing end date: %v", err)
+	}
+	// Set end date to end of day
+	endDateParsedWithTime := endDateParsed.Add(24*time.Hour - time.Second)
+
+	// Map to group by date with time.Time as key for proper sorting
+	dateMap := make(map[time.Time][]string)
+
+	// First, process all worklogs
+	for _, issue := range worklogData.Issues {
+		for _, worklog := range issue.Fields.Worklog.Worklogs {
+			// Filter by author ID
+			if worklog.Author.AccountId != authorId {
+				continue
+			}
+
+			// Parse started date
+			startedTime, err := time.Parse("2006-01-02T15:04:05.000-0700", worklog.Started)
+			if err != nil {
+				// Try alternative format
+				startedTime, err = time.Parse("2006-01-02T15:04:05.000+0700", worklog.Started)
+				if err != nil {
+					continue
+				}
+			}
+
+			// Filter by date range based on started time
+			if startedTime.Before(startDateParsed) || startedTime.After(endDateParsedWithTime) {
+				continue
+			}
+
+			// Use only date part (remove time) for grouping - use UTC to avoid timezone issues
+			dateKey := time.Date(startedTime.Year(), startedTime.Month(), startedTime.Day(), 0, 0, 0, 0, time.UTC)
+
+			// Extract comment tag
+			commentText := extractCommentText(worklog.Comment)
+			tag := extractTag(commentText)
+
+			// Create entry
+			entry := fmt.Sprintf("%s - %s", issue.Key, tag)
+
+			// Add to date map
+			if _, exists := dateMap[dateKey]; !exists {
+				dateMap[dateKey] = []string{}
+			}
+			dateMap[dateKey] = append(dateMap[dateKey], entry)
+		}
+	}
+
+	// Then, initialize all dates in range that don't have worklogs with empty slices
+	for date := startDateParsed; !date.After(endDateParsed); date = date.AddDate(0, 0, 1) {
+		// Use UTC to match the dateKey from worklogs
+		dateKey := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+		if _, exists := dateMap[dateKey]; !exists {
+			dateMap[dateKey] = []string{}
+		}
+	}
+
+	// Sort dates chronologically
+	var dates []time.Time
+	for date := range dateMap {
+		dates = append(dates, date)
+	}
+	sort.Slice(dates, func(i, j int) bool {
+		return dates[i].Before(dates[j])
+	})
+
+	// Create Excel file
+	excel := excelize.NewFile()
+	sheetName := "Timesheet"
+	excel.SetSheetName("Sheet1", sheetName)
+
+	// Set headers
+	excel.SetCellValue(sheetName, "A1", "Tanggal")
+	excel.SetCellValue(sheetName, "B1", "Worklog")
+
+	// Style headers
+	headerStyle, _ := excel.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Bold: true,
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"#E0E0E0"},
+			Pattern: 1,
+		},
+	})
+	excel.SetCellStyle(sheetName, "A1", "B1", headerStyle)
+
+	// Fill data
+	row := 2
+	for _, date := range dates {
+		dateStr := formatIndonesianDate(date)
+		excel.SetCellValue(sheetName, fmt.Sprintf("A%d", row), dateStr)
+		
+		if len(dateMap[date]) > 0 {
+			entries := strings.Join(dateMap[date], ", ")
+			excel.SetCellValue(sheetName, fmt.Sprintf("B%d", row), entries)
+		} else {
+			excel.SetCellValue(sheetName, fmt.Sprintf("B%d", row), "")
+		}
+		row++
+	}
+
+	// Auto-fit columns
+	excel.SetColWidth(sheetName, "A", "A", 20)
+	excel.SetColWidth(sheetName, "B", "B", 80)
+
+	return excel, nil
 }
