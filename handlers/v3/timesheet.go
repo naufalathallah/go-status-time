@@ -35,6 +35,11 @@ type WorklogData struct {
 type WorklogEntry struct {
 	Started string  `json:"started"`
 	Comment Comment `json:"comment"`
+	Author  Author  `json:"author"`
+}
+
+type Author struct {
+	AccountId string `json:"accountId"`
 }
 
 type Comment struct {
@@ -64,8 +69,8 @@ func TimesheetHandler(c *fiber.Ctx) error {
 		})
 	}
 
-	// Process worklog data
-	timesheet := processWorklogData(worklogData)
+	// Process worklog data with author filtering
+	timesheet := processWorklogDataFiltered(worklogData, authorId)
 
 	// Return as plain text response
 	return c.SendString(timesheet)
@@ -123,12 +128,17 @@ func getWorklogData(startDate, endDate, authorId string) (*WorklogResponse, erro
 	return &worklogResponse, nil
 }
 
-func processWorklogData(worklogData *WorklogResponse) string {
+func processWorklogDataFiltered(worklogData *WorklogResponse, authorId string) string {
 	// Map to group by date with time.Time as key for proper sorting
 	dateMap := make(map[time.Time][]string)
 
 	for _, issue := range worklogData.Issues {
 		for _, worklog := range issue.Fields.Worklog.Worklogs {
+			// Filter by author ID
+			if worklog.Author.AccountId != authorId {
+				continue
+			}
+
 			// Parse started date
 			startedTime, err := time.Parse("2006-01-02T15:04:05.000-0700", worklog.Started)
 			if err != nil {
