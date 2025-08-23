@@ -124,8 +124,8 @@ func getWorklogData(startDate, endDate, authorId string) (*WorklogResponse, erro
 }
 
 func processWorklogData(worklogData *WorklogResponse) string {
-	// Map to group by date
-	dateMap := make(map[string][]string)
+	// Map to group by date with time.Time as key for proper sorting
+	dateMap := make(map[time.Time][]string)
 
 	for _, issue := range worklogData.Issues {
 		for _, worklog := range issue.Fields.Worklog.Worklogs {
@@ -139,8 +139,8 @@ func processWorklogData(worklogData *WorklogResponse) string {
 				}
 			}
 
-			// Format date as "1 Januari 2025"
-			dateKey := formatIndonesianDate(startedTime)
+			// Use only date part (remove time) for grouping
+			dateKey := time.Date(startedTime.Year(), startedTime.Month(), startedTime.Day(), 0, 0, 0, 0, startedTime.Location())
 
 			// Extract comment tag
 			commentText := extractCommentText(worklog.Comment)
@@ -157,17 +157,20 @@ func processWorklogData(worklogData *WorklogResponse) string {
 		}
 	}
 
-	// Sort dates and build result
-	var dates []string
+	// Sort dates chronologically
+	var dates []time.Time
 	for date := range dateMap {
 		dates = append(dates, date)
 	}
-	sort.Strings(dates)
+	sort.Slice(dates, func(i, j int) bool {
+		return dates[i].Before(dates[j])
+	})
 
 	var result []string
 	for _, date := range dates {
+		dateStr := formatIndonesianDate(date)
 		entries := strings.Join(dateMap[date], ", ")
-		result = append(result, fmt.Sprintf("%s: %s", date, entries))
+		result = append(result, fmt.Sprintf("%s: %s", dateStr, entries))
 	}
 
 	return strings.Join(result, "\n")
