@@ -139,11 +139,12 @@ func processWorklogDataFiltered(worklogData *WorklogResponse, authorId, startDat
 		return fmt.Sprintf("Error parsing end date: %v", err)
 	}
 	// Set end date to end of day
-	endDateParsed = endDateParsed.Add(24*time.Hour - time.Second)
+	endDateParsedWithTime := endDateParsed.Add(24*time.Hour - time.Second)
 
 	// Map to group by date with time.Time as key for proper sorting
 	dateMap := make(map[time.Time][]string)
 
+	// First, process all worklogs
 	for _, issue := range worklogData.Issues {
 		for _, worklog := range issue.Fields.Worklog.Worklogs {
 			// Filter by author ID
@@ -162,12 +163,12 @@ func processWorklogDataFiltered(worklogData *WorklogResponse, authorId, startDat
 			}
 
 			// Filter by date range based on started time
-			if startedTime.Before(startDateParsed) || startedTime.After(endDateParsed) {
+			if startedTime.Before(startDateParsed) || startedTime.After(endDateParsedWithTime) {
 				continue
 			}
 
-			// Use only date part (remove time) for grouping
-			dateKey := time.Date(startedTime.Year(), startedTime.Month(), startedTime.Day(), 0, 0, 0, 0, startedTime.Location())
+			// Use only date part (remove time) for grouping - use UTC to avoid timezone issues
+			dateKey := time.Date(startedTime.Year(), startedTime.Month(), startedTime.Day(), 0, 0, 0, 0, time.UTC)
 
 			// Extract comment tag
 			commentText := extractCommentText(worklog.Comment)
@@ -184,6 +185,15 @@ func processWorklogDataFiltered(worklogData *WorklogResponse, authorId, startDat
 		}
 	}
 
+	// Then, initialize all dates in range that don't have worklogs with empty slices
+	for date := startDateParsed; !date.After(endDateParsed); date = date.AddDate(0, 0, 1) {
+		// Use UTC to match the dateKey from worklogs
+		dateKey := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+		if _, exists := dateMap[dateKey]; !exists {
+			dateMap[dateKey] = []string{}
+		}
+	}
+
 	// Sort dates chronologically
 	var dates []time.Time
 	for date := range dateMap {
@@ -196,8 +206,12 @@ func processWorklogDataFiltered(worklogData *WorklogResponse, authorId, startDat
 	var result []string
 	for _, date := range dates {
 		dateStr := formatIndonesianDate(date)
-		entries := strings.Join(dateMap[date], ", ")
-		result = append(result, fmt.Sprintf("%s: %s", dateStr, entries))
+		if len(dateMap[date]) > 0 {
+			entries := strings.Join(dateMap[date], ", ")
+			result = append(result, fmt.Sprintf("%s: %s", dateStr, entries))
+		} else {
+			result = append(result, fmt.Sprintf("%s:", dateStr))
+		}
 	}
 
 	return strings.Join(result, "\n")
