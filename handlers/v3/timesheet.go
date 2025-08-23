@@ -70,7 +70,7 @@ func TimesheetHandler(c *fiber.Ctx) error {
 	}
 
 	// Process worklog data with author filtering
-	timesheet := processWorklogDataFiltered(worklogData, authorId)
+	timesheet := processWorklogDataFiltered(worklogData, authorId, startDate, endDate)
 
 	// Return as plain text response
 	return c.SendString(timesheet)
@@ -128,7 +128,19 @@ func getWorklogData(startDate, endDate, authorId string) (*WorklogResponse, erro
 	return &worklogResponse, nil
 }
 
-func processWorklogDataFiltered(worklogData *WorklogResponse, authorId string) string {
+func processWorklogDataFiltered(worklogData *WorklogResponse, authorId, startDate, endDate string) string {
+	// Parse date range for filtering
+	startDateParsed, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return fmt.Sprintf("Error parsing start date: %v", err)
+	}
+	endDateParsed, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return fmt.Sprintf("Error parsing end date: %v", err)
+	}
+	// Set end date to end of day
+	endDateParsed = endDateParsed.Add(24*time.Hour - time.Second)
+
 	// Map to group by date with time.Time as key for proper sorting
 	dateMap := make(map[time.Time][]string)
 
@@ -147,6 +159,11 @@ func processWorklogDataFiltered(worklogData *WorklogResponse, authorId string) s
 				if err != nil {
 					continue
 				}
+			}
+
+			// Filter by date range based on started time
+			if startedTime.Before(startDateParsed) || startedTime.After(endDateParsed) {
+				continue
 			}
 
 			// Use only date part (remove time) for grouping
