@@ -88,7 +88,8 @@ func TimesheetHandler(c *fiber.Ctx) error {
 
 	// Set headers for Excel file download
 	c.Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=timesheet_%s_to_%s.xlsx", startDate, endDate))
+	epochNow := time.Now().Unix()
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=timesheet_%s_to_%s_%d.xlsx", startDate, endDate, epochNow))
 
 	// Write Excel file to response
 	buffer, err := excelFile.WriteToBuffer()
