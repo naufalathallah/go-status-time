@@ -30,8 +30,8 @@ func main() {
 	app.Post("/weekly-hour", handlers.WeeklyHourHandler)
 	app.Post("/weekly-hour-v2", handlers.WeeklyHourV2Handler)
 
-	// v3
-	app.Post("/v3/timesheet", v3.TimesheetHandler)
+	// v3 endpoints - using GET method for timesheet
+	app.Get("/v3/timesheet", v3.TimesheetHandler)
 
 	fmt.Println("Server berjalan di http://localhost:8000")
 	if err := app.Listen(":8000"); err != nil {
