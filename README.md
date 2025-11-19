@@ -33,49 +33,30 @@ go run main.go
 
 The server will run at `http://localhost:8000`
 
-## API Endpoints
+## Generate Timesheet Excel
 
-### 1. Weekly Report
+Untuk generate timesheet dalam format Excel, ikuti langkah berikut:
 
-**Endpoint:** `POST /weekly`
+1. **Sesuaikan Start Date dan End Date**
 
-Generate weekly report in Excel format from CSV data.
+   - Ubah parameter `startDate` dan `endDate` sesuai periode yang diinginkan
+   - Format: `YYYY-MM-DD`
 
-**Form Parameters:**
+2. **Sesuaikan Author ID**
 
-- `file`: CSV file containing timesheet data
-- `startDate`: Start date in format `YYYY/MM/DD`
-- `endDate`: End date in format `YYYY/MM/DD`
+   - Ganti parameter `authorId` dengan Jira User ID Anda
+   - Format: `712020:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
 
-**Example Request:**
-`sh
-    curl -X POST \
-      -F "file=@data.csv" \
-      -F "startDate=2024/03/01" \
-      -F "endDate=2024/03/07" \
-      http://localhost:8000/weekly
-    `
+3. **Kirim Request**
 
-### 2. Timesheet Export
+   ```sh
+   curl --location 'http://localhost:8000/v3/timesheet?startDate=2025-10-15&endDate=2025-11-15&authorId=712020%3Ab0f4204d-cf46-477e-b09e-056718804914' \
+   --header 'Accept: application/json'
+   ```
 
-**Endpoint:** `POST /timesheet`
-
-Generate formatted timesheet in Excel format from CSV data.
-
-**Form Parameters:**
-
-- `file`: CSV file containing timesheet data
-- `startDate`: Start date in format `YYYY/MM/DD`
-- `endDate`: End date in format `YYYY/MM/DD`
-
-**Example Request:**
-`sh
-    curl -X POST \
-      -F "file=@data.csv" \
-      -F "startDate=2024/03/01" \
-      -F "endDate=2024/03/07" \
-      http://localhost:8000/timesheet
-    `
+4. **Save Response**
+   - Setelah request berhasil, save response sebagai file Excel (.xlsx)
+   - File yang dihasilkan berisi timesheet dalam format Excel yang sudah terformat
 
 ## Project Structure
 
